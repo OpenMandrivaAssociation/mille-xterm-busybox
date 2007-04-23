@@ -1,7 +1,7 @@
 Summary:	Multi-call binary combining many common Unix tools into one executable
 Name:		mille-xterm-busybox
 Version:	1.1.2
-Release:	%mkrel 1
+Release:	%mkrel 2
 License:	GPL
 Group:		Shells
 URL:		http://www.busybox.net/
@@ -12,8 +12,7 @@ Patch0:		udhcp-altport.diff
 Patch1:		udhcp-rootpath.diff
 BuildRequires:	gcc >= 3.3.1-2mdk
 BuildRequires:	uClibc-static-devel >= 0.9.26-5mdk
-Provides:	busybox
-Obsoletes:	busybox
+Conflicts:	busybox
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-buildroot
 
 %description
