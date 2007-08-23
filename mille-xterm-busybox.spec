@@ -1,7 +1,7 @@
 Summary:	Multi-call binary combining many common Unix tools into one executable
 Name:		mille-xterm-busybox
 Version:	1.1.2
-Release:	%mkrel 3
+Release:	%mkrel 4
 License:	GPL
 Group:		Shells
 URL:		http://www.busybox.net/
