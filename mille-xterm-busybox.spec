@@ -13,6 +13,7 @@ Patch1:		udhcp-rootpath.diff
 BuildRequires:	gcc >= 3.3.1-2mdk
 BuildRequires:	uClibc-static-devel >= 0.9.26-5mdk
 Conflicts:	busybox
+BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-buildroot
 
 %description
 BusyBox combines tiny versions of many common UNIX utilities into a single
