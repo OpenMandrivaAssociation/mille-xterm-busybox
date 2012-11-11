@@ -1,0 +1,97 @@
+diff -Naur busybox-1.1.2/networking/udhcp/README.udhcpc busybox-1.1.2.oden/networking/udhcp/README.udhcpc
+--- busybox-1.1.2/networking/udhcp/README.udhcpc	2006-03-22 22:16:19.000000000 +0100
++++ busybox-1.1.2.oden/networking/udhcp/README.udhcpc	2007-02-08 16:23:13.000000000 +0100
+@@ -25,6 +25,7 @@
+ -p, --pidfile=file              Store process ID of daemon in file
+ -q, --quit                      Quit after obtaining lease
+ -r, --request=IP                IP address to request (default: none)
++-R, --require=NAME              Add NAME to request
+ -s, --script=file               Run file at dhcp events (default:
+                                 /usr/share/udhcpc/default.script)
+ -v, --version                   Display version
+@@ -104,6 +105,8 @@
+ 
+ additional options are easily added in options.c.
+ 
++By default, only a few basic items are requested. To request additional
++items use the -R option. Example: "-R rootpath"
+ 
+ note on udhcpc's random seed
+ ---------------------------
+diff -Naur busybox-1.1.2/networking/udhcp/dhcpc.c busybox-1.1.2.oden/networking/udhcp/dhcpc.c
+--- busybox-1.1.2/networking/udhcp/dhcpc.c	2007-02-08 16:24:57.000000000 +0100
++++ busybox-1.1.2.oden/networking/udhcp/dhcpc.c	2007-02-08 16:24:15.000000000 +0100
+@@ -86,6 +86,7 @@
+ "  -P, --serverport=PORT           Alternate server port number to use (default 67)\n"
+ "  -q, --quit                      Quit after obtaining lease\n"
+ "  -r, --request=IP                IP address to request (default: none)\n"
++"  -R, --require=NAME              Add NAME to the request\n"
+ "  -s, --script=file               Run file at dhcp events (default:\n"
+ "                                  " DEFAULT_SCRIPT ")\n"
+ "  -T, --timeout=seconds           Try to get the lease for the amount of\n"
+@@ -208,6 +209,7 @@
+ 		{"serverport",	required_argument,	0, 'P'},
+ 		{"quit",	no_argument,		0, 'q'},
+ 		{"request",	required_argument,	0, 'r'},
++		{"require",     required_argument,      0, 'R'},
+ 		{"script",	required_argument,	0, 's'},
+ 		{"timeout",	required_argument,	0, 'T'},
+ 		{"version",	no_argument,		0, 'v'},
+@@ -218,7 +220,7 @@
+ 	/* get options */
+ 	while (1) {
+ 		int option_index = 0;
+-		c = getopt_long(argc, argv, "c:CV:fbH:h:F:i:np:P:qr:s:T:t:v", arg_options, &option_index);
++		c = getopt_long(argc, argv, "c:CV:fbH:h:F:i:np:P:qr:R:s:T:t:v", arg_options, &option_index);
+ 		if (c == -1) break;
+ 
+ 		switch (c) {
+@@ -295,6 +297,12 @@
+ 		case 'r':
+ 			requested_ip = inet_addr(optarg);
+ 			break;
++		case 'R':
++  		        if( require_option( optarg ) ){
++			  printf("Option: %s unknown/not-supported\n", optarg );
++			  return 1;
++			}
++			break;
+ 		case 's':
+ 			client_config.script = optarg;
+ 			break;
+diff -Naur busybox-1.1.2/networking/udhcp/options.c busybox-1.1.2.oden/networking/udhcp/options.c
+--- busybox-1.1.2/networking/udhcp/options.c	2006-03-22 22:16:19.000000000 +0100
++++ busybox-1.1.2.oden/networking/udhcp/options.c	2007-02-08 16:23:13.000000000 +0100
+@@ -59,7 +59,20 @@
+ 	[OPTION_S32] =		4
+ };
+ 
+-
++/* Mark the given option as required/requested */
++/* instead of the compile time default */
++int require_option( char *name )
++{
++  int i;
++  for( i = 0 ; dhcp_options[i].code ; i++ ){
++    if( !strcmp( name, dhcp_options[i].name ) ){
++      dhcp_options[i].flags |= OPTION_REQ;
++      return 0;
++    }
++  }
++  return 1;
++}
++  
+ /* get an option with bounds checking (warning, not aligned). */
+ uint8_t *get_option(struct dhcpMessage *packet, int code)
+ {
+diff -Naur busybox-1.1.2/networking/udhcp/options.h busybox-1.1.2.oden/networking/udhcp/options.h
+--- busybox-1.1.2/networking/udhcp/options.h	2006-03-22 22:16:19.000000000 +0100
++++ busybox-1.1.2.oden/networking/udhcp/options.h	2007-02-08 16:23:13.000000000 +0100
+@@ -30,6 +30,7 @@
+ extern struct dhcp_option dhcp_options[];
+ extern int option_lengths[];
+ 
++int require_option( char *name );
+ uint8_t *get_option(struct dhcpMessage *packet, int code);
+ int end_option(uint8_t *optionptr);
+ int add_option_string(uint8_t *optionptr, uint8_t *string);

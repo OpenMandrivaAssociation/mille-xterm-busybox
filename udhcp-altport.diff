@@ -1,0 +1,136 @@
+diff -Naur busybox-1.1.2/include/usage.h busybox-1.1.2.oden/include/usage.h
+--- busybox-1.1.2/include/usage.h	2006-03-22 22:16:24.000000000 +0100
++++ busybox-1.1.2.oden/include/usage.h	2007-02-08 16:16:34.000000000 +0100
+@@ -3248,7 +3248,7 @@
+ 	"Adjust filesystem options on ext[23] filesystems."
+ 
+ #define udhcpc_trivial_usage \
+-	"[-Cfbnqtv] [-c CID] [-V VCLS] [-H HOSTNAME] [-i INTERFACE]\n[-p pidfile] [-r IP] [-s script]"
++	"[-Cfbnqtv] [-c CID] [-V VCLS] [-H HOSTNAME] [-i INTERFACE]\n[-p pidfile] [-P serverport] [-r IP] [-s script]"
+ #define udhcpc_full_usage \
+ 	"\t-c,\t--clientid=CLIENTID\tSet client identifier\n" \
+ 	"\t-C,\t--clientid-none\tSuppress default client identifier\n" \
+@@ -3260,6 +3260,7 @@
+ 	"\t-i,\t--interface=INTERFACE\tInterface to use (default: eth0)\n" \
+ 	"\t-n,\t--now\tExit with failure if lease cannot be immediately negotiated\n" \
+ 	"\t-p,\t--pidfile=file\tStore process ID of daemon in file\n" \
++	"\t-P,\t--serverport=PORT\tAlternate server port number to use (default 67)\n" \
+ 	"\t-q,\t--quit\tQuit after obtaining lease\n" \
+ 	"\t-r,\t--request=IP\tIP address to request (default: none)\n" \
+ 	"\t-s,\t--script=file\tRun file at dhcp events (default: /usr/share/udhcpc/default.script)\n" \
+diff -Naur busybox-1.1.2/networking/udhcp/clientpacket.c busybox-1.1.2.oden/networking/udhcp/clientpacket.c
+--- busybox-1.1.2/networking/udhcp/clientpacket.c	2006-03-22 22:16:19.000000000 +0100
++++ busybox-1.1.2.oden/networking/udhcp/clientpacket.c	2007-02-08 16:14:58.000000000 +0100
+@@ -109,8 +109,8 @@
+ 
+ 	add_requests(&packet);
+ 	LOG(LOG_DEBUG, "Sending discover...");
+-	return raw_packet(&packet, INADDR_ANY, CLIENT_PORT, INADDR_BROADCAST,
+-				SERVER_PORT, MAC_BCAST_ADDR, client_config.ifindex);
++	return raw_packet(&packet, INADDR_ANY, client_config.clientport, INADDR_BROADCAST,
++				client_config.serverport, MAC_BCAST_ADDR, client_config.ifindex);
+ }
+ 
+ 
+@@ -129,8 +129,8 @@
+ 	add_requests(&packet);
+ 	addr.s_addr = requested;
+ 	LOG(LOG_DEBUG, "Sending select for %s...", inet_ntoa(addr));
+-	return raw_packet(&packet, INADDR_ANY, CLIENT_PORT, INADDR_BROADCAST,
+-				SERVER_PORT, MAC_BCAST_ADDR, client_config.ifindex);
++	return raw_packet(&packet, INADDR_ANY, client_config.clientport, INADDR_BROADCAST,
++				client_config.serverport, MAC_BCAST_ADDR, client_config.ifindex);
+ }
+ 
+ 
+@@ -147,9 +147,9 @@
+ 	add_requests(&packet);
+ 	LOG(LOG_DEBUG, "Sending renew...");
+ 	if (server)
+-		ret = kernel_packet(&packet, ciaddr, CLIENT_PORT, server, SERVER_PORT);
+-	else ret = raw_packet(&packet, INADDR_ANY, CLIENT_PORT, INADDR_BROADCAST,
+-				SERVER_PORT, MAC_BCAST_ADDR, client_config.ifindex);
++		ret = kernel_packet(&packet, ciaddr, client_config.clientport, server, client_config.serverport);
++	else ret = raw_packet(&packet, INADDR_ANY, client_config.clientport, INADDR_BROADCAST,
++				client_config.serverport, MAC_BCAST_ADDR, client_config.ifindex);
+ 	return ret;
+ }
+ 
+@@ -167,7 +167,7 @@
+ 	add_simple_option(packet.options, DHCP_SERVER_ID, server);
+ 
+ 	LOG(LOG_DEBUG, "Sending release...");
+-	return kernel_packet(&packet, ciaddr, CLIENT_PORT, server, SERVER_PORT);
++	return kernel_packet(&packet, ciaddr, client_config.clientport, server, client_config.serverport);
+ }
+ 
+ 
+@@ -202,7 +202,7 @@
+ 
+ 	/* Make sure its the right packet for us, and that it passes sanity checks */
+ 	if (packet.ip.protocol != IPPROTO_UDP || packet.ip.version != IPVERSION ||
+-	    packet.ip.ihl != sizeof(packet.ip) >> 2 || packet.udp.dest != htons(CLIENT_PORT) ||
++	    packet.ip.ihl != sizeof(packet.ip) >> 2 || packet.udp.dest != htons(client_config.clientport) ||
+ 	    bytes > (int) sizeof(struct udp_dhcp_packet) ||
+ 	    ntohs(packet.udp.len) != (uint16_t) (bytes - sizeof(packet.ip))) {
+ 		DEBUG(LOG_INFO, "unrelated/bogus packet");
+diff -Naur busybox-1.1.2/networking/udhcp/dhcpc.c busybox-1.1.2.oden/networking/udhcp/dhcpc.c
+--- busybox-1.1.2/networking/udhcp/dhcpc.c	2006-03-22 22:16:19.000000000 +0100
++++ busybox-1.1.2.oden/networking/udhcp/dhcpc.c	2007-02-08 16:19:28.000000000 +0100
+@@ -60,6 +60,8 @@
+ 	.ifindex = 0,
+ 	.retries = 3,
+ 	.timeout = 3,
++	.serverport = SERVER_PORT,
++	.clientport = CLIENT_PORT,
+ 	.arp = "\0\0\0\0\0\0",		/* appease gcc-3.0 */
+ };
+ 
+@@ -81,6 +83,7 @@
+ "  -n, --now                       Exit with failure if lease cannot be\n"
+ "                                  immediately negotiated.\n"
+ "  -p, --pidfile=file              Store process ID of daemon in file\n"
++"  -P, --serverport=PORT           Alternate server port number to use (default 67)\n"
+ "  -q, --quit                      Quit after obtaining lease\n"
+ "  -r, --request=IP                IP address to request (default: none)\n"
+ "  -s, --script=file               Run file at dhcp events (default:\n"
+@@ -202,6 +205,7 @@
+ 		{"interface",	required_argument,	0, 'i'},
+ 		{"now",		no_argument,		0, 'n'},
+ 		{"pidfile",	required_argument,	0, 'p'},
++		{"serverport",	required_argument,	0, 'P'},
+ 		{"quit",	no_argument,		0, 'q'},
+ 		{"request",	required_argument,	0, 'r'},
+ 		{"script",	required_argument,	0, 's'},
+@@ -214,7 +218,7 @@
+ 	/* get options */
+ 	while (1) {
+ 		int option_index = 0;
+-		c = getopt_long(argc, argv, "c:CV:fbH:h:F:i:np:qr:s:T:t:v", arg_options, &option_index);
++		c = getopt_long(argc, argv, "c:CV:fbH:h:F:i:np:P:qr:s:T:t:v", arg_options, &option_index);
+ 		if (c == -1) break;
+ 
+ 		switch (c) {
+@@ -281,6 +285,10 @@
+ 		case 'p':
+ 			client_config.pidfile = optarg;
+ 			break;
++		case 'P':
++			client_config.serverport = atoi(optarg);
++			client_config.clientport = atoi(optarg)+1;
++			break;
+ 		case 'q':
+ 			client_config.quit_after_lease = 1;
+ 			break;
+diff -Naur busybox-1.1.2/networking/udhcp/dhcpc.h busybox-1.1.2.oden/networking/udhcp/dhcpc.h
+--- busybox-1.1.2/networking/udhcp/dhcpc.h	2006-03-22 22:16:19.000000000 +0100
++++ busybox-1.1.2.oden/networking/udhcp/dhcpc.h	2007-02-08 16:14:58.000000000 +0100
+@@ -24,6 +24,8 @@
+ 	char *interface;		/* The name of the interface to use */
+ 	char *pidfile;			/* Optionally store the process ID */
+ 	char *script;			/* User script to run at dhcp events */
++	int serverport;			/* Optional server port to contact */
++	int clientport;			/* Client port to receive requests (serverport+1) */
+ 	uint8_t *clientid;		/* Optional client id to use */
+ 	uint8_t *vendorclass;		/* Optional vendor class-id to use */
+ 	uint8_t *hostname;		/* Optional hostname to use */
