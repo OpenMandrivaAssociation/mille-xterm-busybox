@@ -4,7 +4,7 @@ Version:	1.1.2
 Release:	%mkrel 7
 License:	GPL
 Group:		Shells
-URL:		http://www.busybox.net/
+URL:		https://www.busybox.net/
 Source0:	http://www.busybox.net/downloads/busybox-%{version}.tar.bz2
 Source1:	http://www.busybox.net/downloads/busybox-%{version}.tar.bz2.sign
 Source2:	busybox-%{version}.config
