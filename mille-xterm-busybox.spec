@@ -10,6 +10,7 @@ Source1:	http://www.busybox.net/downloads/busybox-%{version}.tar.bz2.sign
 Source2:	busybox-%{version}.config
 Patch0:		udhcp-altport.diff
 Patch1:		udhcp-rootpath.diff
+BuildRequires:	make
 BuildRequires:	gcc >= 3.3.1-2mdk
 BuildRequires:	uClibc-static-devel >= 0.9.26-5mdk
 Conflicts:	busybox
